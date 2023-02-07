@@ -158,24 +158,17 @@ https://github.com/bytewax/search-session/blob/94f8f84be881e15c431b29dfd86bd347c
 
 Let's inspect the output and see if it makes sense.
 
-
+https://github.com/bytewax/search-session/blob/233501dce47f1e1b1877d722ca27b4657955e7f5/dataflow.py#L130-L133
 
 Since the [capture](/apidocs#bytewax.Dataflow.capture) step is immediately after calculating CTR, we should see one output item for each search session. That checks out! There were three searches in the input: "dogs", "cats", and "fruit". Only the first two resulted in a click, so they contributed `1.0` to the CTR, while the no-click search contributed `0.0`.
 
 ## Summary
 
-That’s it, you are awesome and we are going to rephrase our takeaway paragraph
+That’s it, now you have an understanding of how you can build custom session windows, how you can define dataclasses to be used in Bytewax and how to calculate click through rate on a stream of logs.
 
 ## We want to hear from you!
 
-If you have any trouble with the process or have ideas about how to improve this document, come talk to us in the #troubleshooting Slack channel!
-
-## Where to next?
-
-- Relevant explainer video
-- Relevant case study
-- Relevant blog post
-- Another awesome tutorial
+If you have any trouble with the process or have ideas about how to improve this document, come talk to us in the [#troubleshooting Slack channel!](https://join.slack.com/t/bytewaxcommunity/shared_invite/zt-vkos2f6r-_SeT9pF2~n9ArOaeI3ND2w)
 
 See our full gallery of tutorials →
 
