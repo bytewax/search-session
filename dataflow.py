@@ -3,9 +3,9 @@ from dataclasses import dataclass
 from typing import List
 
 from bytewax.dataflow import Dataflow
-from bytewax.execution import run_main
 from bytewax.inputs import ManualInputConfig
 from bytewax.outputs import StdOutputConfig
+from bytewax.execution import run_main
 
 
 @dataclass

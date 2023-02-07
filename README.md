@@ -1,8 +1,8 @@
-# Template for a sample app
+# Building Sessions from Search Logs
 
 - Skill level
     
-    **Beginner, no prior knowledge requirements**
+    **Basic, no prior knowledge requirements**
     
 - Time to complete
     
@@ -13,49 +13,100 @@ Introduction: *Here is a basic example of using Bytewax to turn an incoming stre
 
 ## ****Prerequisites****
 
-**Kafka/Redpanda**
-
-**Postgres**
-
 **Python modules**
+bytewax
 
 ## Your Takeaway
 
-[What people can expect to gain from reading the tutorial]
-
-*Your takeaway from this tutorial will be a streaming application that lets you aggregate data coming from a Kafka topic using Bytewax.*
+*This guide will teach you how to use bytewax to aggregate on a custom session window and calculate metrics*
 
 ## Table of content
 
 - Resources
-- Step 1
-- Step 2
-- Step 3
+- Data Model
+- Input Data
+- Constructing the Dataflow
+- Execution
 - Summary
 
 ## Resources
 
-Github link
+[Github link](https://github.com/bytewax/search-session)
 
-Jupyter Notebook link
+## Data Model
 
-Data sample link
+Let's start by defining a data model / schema for our incoming events. We'll make a little model class for all the relevant events we'd want to monitor.
 
-## Step 1. Concepts
+https://github.com/bytewax/search-session/blob/1fe98f31a2269c17f65edd7b5d46cb904d812e74/dataflow.py#L11-L41
 
-To start off, we are going to diverge into some concepts around markets, exchanges and orders.
+In a more mature system, these might come from external schema or be auto generated.
 
-### Concepts
+## Generating Input Data
 
-Order book
+Now that we've got those, here's a small dump of some example data you could imagine coming from your app's events infrastructure.
 
-Bid & Ask
+The input of a dataflow expects a generator. Let's write a function that will yield one of these events at a time into our dataflow.
 
-Level 2 Data
+```python
+IMAGINE_THESE_EVENTS_STREAM_FROM_CLIENTS = [
+    AppOpen(user=1),
+    Search(user=1, query="dogs"),
+    # Eliding named args...
+    Results(1, ["fido", "rover", "buddy"]),
+    ClickResult(1, "rover"),
+    Search(1, "cats"),
+    Results(1, ["fluffy", "burrito", "kathy"]),
+    ClickResult(1, "fluffy"),
+    AppOpen(2),
+    ClickResult(1, "kathy"),
+    Search(2, "fruit"),
+    AppClose(1),
+    AppClose(2),
+]
 
-## Step 2. ****Inputs & Outputs****
 
-## Step 3. …
+def input_builder(worker_index, worker_count, resume_state):
+    state = resume_state or None
+    for line in IMAGINE_THESE_EVENTS_STREAM_FROM_CLIENTS:
+        yield (state, line)
+```
+
+For the moment, we aren't going to be using our resume state to manage failures, but returning the empty state is a requirement for our input builder.
+
+## Constructing the Dataflow
+
+### High-Level Plan
+
+Let's talk about the high-level plan for how to sessionize:
+
+- Searches are per-user, so we need to divvy up events by user.
+
+- Searches don't span user sessions, so we should calculate user
+  sessions first.
+
+- Sessions without a search shouldn't contribute.
+
+- Calculate one metric: **click through rate** (or **CTR**), if a user
+  clicked on any result in a search.
+
+### The Dataflow
+
+Now that we have some input data, let's start defining the
+computational steps of our dataflow based on our plan.
+
+To start, create an empty `bytewax.dataflow.Dataflow` object.
+
+In this case, we'll use a `ManualInputConfig`, which takes the
+`input_builder` function that we defined above.
+
+```python
+from bytewax.inputs import ManualInputConfig
+from bytewax.dataflow import Dataflow
+
+flow = Dataflow()
+flow.input("input", ManualInputConfig(input_builder))
+```
+
 
 ## Summary
 
