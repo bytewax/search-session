@@ -18,7 +18,7 @@ bytewax
 
 ## Your Takeaway
 
-*This guide will teach you how to use bytewax to aggregate on a custom session window and calculate metrics*
+*This guide will teach you how to use Bytewax to aggregate on a custom session window on streaming data using reduce and then calculate metrics downstream.*
 
 ## Table of content
 
@@ -79,13 +79,13 @@ In this case, we'll use a `ManualInputConfig`, which takes the `input_builder` f
 
 https://github.com/bytewax/search-session/blob/1fe98f31a2269c17f65edd7b5d46cb904d812e74/dataflow.py#L108-L109
 
-Now that we have a Dataflow, and some input, we can add a series of **steps** to the dataflow. Steps are made up of **operators**, that provide a "shape" of transformation, and **logic functions**, that you supply to do your specific transformation. [You can read more about all the operators in our documentation.](/docs/getting-started/operators/)
+Now that we have a Dataflow, and some input, we can add a series of **steps** to the dataflow. Steps are made up of **operators**, that provide a "shape" of transformation, and **logic functions**, that you supply to do your specific transformation. [You can read more about all the operators in our documentation.](https://www.bytewax.io/docs/getting-started/operators)
 
 Our first task is to make sure to group incoming events by user since no session deals with multiple users.
 
 All Bytewax operators that perform grouping require that their input be in the form of a `(key, value)` tuple, where `key` is the string the dataflow will group by before passing to the operator logic.
 
-The operator which modifies all data flowing through it is [map](/apidocs#bytewax.Dataflow.map). The map operator takes a Python function as an argument and that function will transform the data, one at a time.
+The operator which modifies all data in the stream, one at a time, is [map](https://www.bytewax.io/apidocs/bytewax.dataflow#bytewax.dataflow.Dataflow.map). The map operator takes a Python function as an argument and that function will transform the data, one at a time.
 
 https://github.com/bytewax/search-session/blob/94f8f84be881e15c431b29dfd86bd347c6387a06/dataflow.py#L111-L112
 
@@ -115,16 +115,11 @@ And then add the transformation to our dataflow with a map operator.
 
 https://github.com/bytewax/search-session/blob/94f8f84be881e15c431b29dfd86bd347c6387a06/dataflow.py#L116-L117
 
-Our next task is to split user sessions into search sessions. To do
-that, we'll use the [flat map operator](/apidocs#bytewax.Dataflow.flat_map), that
-allows you to emit multiple items downstream (search sessions) for
-each input item (user session).
+Our next task is to split user sessions into search sessions. To do that, we'll use the [flat map operator](/apidocs#bytewax.Dataflow.flat_map), that allows you to emit multiple items downstream (search sessions) for each input item (user session).
 
 https://github.com/bytewax/search-session/blob/94f8f84be881e15c431b29dfd86bd347c6387a06/dataflow.py#L120
 
-We walk through each user session's events, then whenever we encounter
-a search, emit downstream the previous events. This works just like
-`str.split` but with objects.
+We walk through each user session's events, then whenever we encounter a search, emit downstream the previous events. This works just like `str.split` but with objects.
 
 https://github.com/bytewax/search-session/blob/94f8f84be881e15c431b29dfd86bd347c6387a06/dataflow.py#L86-L98
 
