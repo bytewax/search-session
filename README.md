@@ -156,6 +156,10 @@ Now we're done with defining the dataflow. Let's run it!
 
 https://github.com/bytewax/search-session/blob/94f8f84be881e15c431b29dfd86bd347c6387a06/dataflow.py#L127-L128
 
+We can run this file locally by installing bytewax and running the python file. The recommended way is to use docker, you can run the commands in the run.sh script.
+
+https://github.com/bytewax/search-session/blob/a435ce7a720c75d4726032639803dfea5d36b399/run.sh#L1-L5
+
 Let's inspect the output and see if it makes sense.
 
 https://github.com/bytewax/search-session/blob/233501dce47f1e1b1877d722ca27b4657955e7f5/dataflow.py#L130-L133
