@@ -126,3 +126,8 @@ flow.capture(StdOutputConfig())
 
 if __name__ == "__main__":
     run_main(flow)
+
+# Sample Output
+# 1.0
+# 1.0
+# 0.0

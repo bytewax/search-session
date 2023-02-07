@@ -45,31 +45,9 @@ In a more mature system, these might come from external schema or be auto genera
 
 Now that we've got those, here's a small dump of some example data you could imagine coming from your app's events infrastructure.
 
-The input of a dataflow expects a generator. Let's write a function that will yield one of these events at a time into our dataflow.
+The input of a dataflow expects a generator. This is done by yielding the events one at a time.
 
-```python
-IMAGINE_THESE_EVENTS_STREAM_FROM_CLIENTS = [
-    AppOpen(user=1),
-    Search(user=1, query="dogs"),
-    # Eliding named args...
-    Results(1, ["fido", "rover", "buddy"]),
-    ClickResult(1, "rover"),
-    Search(1, "cats"),
-    Results(1, ["fluffy", "burrito", "kathy"]),
-    ClickResult(1, "fluffy"),
-    AppOpen(2),
-    ClickResult(1, "kathy"),
-    Search(2, "fruit"),
-    AppClose(1),
-    AppClose(2),
-]
-
-
-def input_builder(worker_index, worker_count, resume_state):
-    state = resume_state or None
-    for line in IMAGINE_THESE_EVENTS_STREAM_FROM_CLIENTS:
-        yield (state, line)
-```
+https://github.com/bytewax/search-session/blob/1fe98f31a2269c17f65edd7b5d46cb904d812e74/dataflow.py#L44-L64
 
 For the moment, we aren't going to be using our resume state to manage failures, but returning the empty state is a requirement for our input builder.
 
@@ -81,32 +59,108 @@ Let's talk about the high-level plan for how to sessionize:
 
 - Searches are per-user, so we need to divvy up events by user.
 
-- Searches don't span user sessions, so we should calculate user
-  sessions first.
+- Searches don't span user sessions, so we should calculate user sessions first.
 
 - Sessions without a search shouldn't contribute.
 
-- Calculate one metric: **click through rate** (or **CTR**), if a user
-  clicked on any result in a search.
+- Calculate one metric: **click through rate** (or **CTR**), if a user clicked on any result in a search.
 
 ### The Dataflow
 
-Now that we have some input data, let's start defining the
-computational steps of our dataflow based on our plan.
+Now that we have some input data, let's start defining the computational steps of our dataflow based on our plan.
 
-To start, create an empty `bytewax.dataflow.Dataflow` object.
+We will import the `bytewax.dataflow.Dataflow` and the `bytewax.dataflow.ManualInputConfig` class.
 
-In this case, we'll use a `ManualInputConfig`, which takes the
-`input_builder` function that we defined above.
+https://github.com/bytewax/search-session/blob/94f8f84be881e15c431b29dfd86bd347c6387a06/dataflow.py#L5-L6
 
-```python
-from bytewax.inputs import ManualInputConfig
-from bytewax.dataflow import Dataflow
+And then, create an empty `bytewax.dataflow.Dataflow` object.
 
-flow = Dataflow()
-flow.input("input", ManualInputConfig(input_builder))
-```
+In this case, we'll use a `ManualInputConfig`, which takes the `input_builder` function that we defined above.
 
+https://github.com/bytewax/search-session/blob/1fe98f31a2269c17f65edd7b5d46cb904d812e74/dataflow.py#L108-L109
+
+Now that we have a Dataflow, and some input, we can add a series of **steps** to the dataflow. Steps are made up of **operators**, that provide a "shape" of transformation, and **logic functions**, that you supply to do your specific transformation. [You can read more about all the operators in our documentation.](/docs/getting-started/operators/)
+
+Our first task is to make sure to group incoming events by user since no session deals with multiple users.
+
+All Bytewax operators that perform grouping require that their input be in the form of a `(key, value)` tuple, where `key` is the string the dataflow will group by before passing to the operator logic.
+
+The operator which modifies all data flowing through it is [map](/apidocs#bytewax.Dataflow.map). The map operator takes a Python function as an argument and that function will transform the data, one at a time.
+
+https://github.com/bytewax/search-session/blob/94f8f84be881e15c431b29dfd86bd347c6387a06/dataflow.py#L111-L112
+
+Here we use the map operator with an initial_session function that will pull each event's user ID as a string into that key position.
+
+https://github.com/bytewax/search-session/blob/94f8f84be881e15c431b29dfd86bd347c6387a06/dataflow.py#L67-L68
+
+For the value, we're planning ahead to our next task: sessionization. The operator best shaped for this is the [reduce operator](/apidocs#bytewax.Dataflow.reduce) which groups items by key, then combines them together into an **aggregator** in order. We can think about our reduce step as "combine together sessions if they should be joined". We'll be modeling a session as a list of events, so have the values be a list of a single event `[event]` that we will combine with our reducer function.
+
+Reduce requires two bits of logic:
+
+- How do I combine sessions? Since session are just Python lists, we can use the `+` operator to add them (via the built-in `operator.add` function).
+
+- When is a session complete? In this case, a session is complete when the last item in the session is the app closing. We'll write a `session_has_closed` function to answer that.
+
+https://github.com/bytewax/search-session/blob/94f8f84be881e15c431b29dfd86bd347c6387a06/dataflow.py#L71-L74
+
+Reduce also takes a unique **step ID** to help organize the state saved internally.
+
+https://github.com/bytewax/search-session/blob/94f8f84be881e15c431b29dfd86bd347c6387a06/dataflow.py#L114-L115
+
+We had to group by user because sessions were per-user, but now that we have sessions, the grouping key is no longer necessary for metrics. We can write a function that will remove the key.
+
+https://github.com/bytewax/search-session/blob/94f8f84be881e15c431b29dfd86bd347c6387a06/dataflow.py#L81-L83
+
+And then add the transformation to our dataflow with a map operator.
+
+https://github.com/bytewax/search-session/blob/94f8f84be881e15c431b29dfd86bd347c6387a06/dataflow.py#L116-L117
+
+Our next task is to split user sessions into search sessions. To do
+that, we'll use the [flat map operator](/apidocs#bytewax.Dataflow.flat_map), that
+allows you to emit multiple items downstream (search sessions) for
+each input item (user session).
+
+https://github.com/bytewax/search-session/blob/94f8f84be881e15c431b29dfd86bd347c6387a06/dataflow.py#L120
+
+We walk through each user session's events, then whenever we encounter
+a search, emit downstream the previous events. This works just like
+`str.split` but with objects.
+
+https://github.com/bytewax/search-session/blob/94f8f84be881e15c431b29dfd86bd347c6387a06/dataflow.py#L86-L98
+
+The [filter operator](https://www.bytewax.io/apidocs/bytewax.dataflow#bytewax.dataflow.Dataflow.filter) allows us to remove any items from a stream that don't match a specific criteria. It is used in conjunction with a Python function that describes the rules.
+
+https://github.com/bytewax/search-session/blob/94f8f84be881e15c431b29dfd86bd347c6387a06/dataflow.py#L121
+
+In this case, we can use it to get rid of all search sessions that don't contain searches and shouldn't contribute to metrics.
+
+https://github.com/bytewax/search-session/blob/94f8f84be881e15c431b29dfd86bd347c6387a06/dataflow.py#L86-L87
+
+We can now move on to our final task: calculating metrics per search session in a map operator. 
+
+https://github.com/bytewax/search-session/blob/94f8f84be881e15c431b29dfd86bd347c6387a06/dataflow.py#L123
+
+If there's a click during a search, the CTR is 1.0 for that search, 0.0 otherwise. Given those two extreme values, we can do further statistics to get things like CTR per day, etc
+
+https://github.com/bytewax/search-session/blob/94f8f84be881e15c431b29dfd86bd347c6387a06/dataflow.py#L101-L105
+
+Now that our dataflow is done, we can define a function to be called for each output item. In this example, we're just printing out what we've received.
+
+https://github.com/bytewax/search-session/blob/94f8f84be881e15c431b29dfd86bd347c6387a06/dataflow.py#L124
+
+Now we're done with defining the dataflow. Let's run it!
+
+## Execution
+
+[Bytewax provides a few different entry points for executing your dataflow](https://www.bytewax.io/docs/getting-started/execution), but because we're focusing on the dataflow in this example, we're going to use `bytewax.execution.run_main` which is the most basic execution mode running a single worker in the main process.
+
+https://github.com/bytewax/search-session/blob/94f8f84be881e15c431b29dfd86bd347c6387a06/dataflow.py#L127-L128
+
+Let's inspect the output and see if it makes sense.
+
+
+
+Since the [capture](/apidocs#bytewax.Dataflow.capture) step is immediately after calculating CTR, we should see one output item for each search session. That checks out! There were three searches in the input: "dogs", "cats", and "fruit". Only the first two resulted in a click, so they contributed `1.0` to the CTR, while the no-click search contributed `0.0`.
 
 ## Summary
 
