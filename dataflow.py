@@ -1,133 +1,142 @@
-import operator
+from datetime import datetime, timedelta, timezone
+
 from dataclasses import dataclass
 from typing import List
 
-from bytewax.dataflow import Dataflow
-from bytewax.inputs import ManualInputConfig
-from bytewax.outputs import StdOutputConfig
+from bytewax.connectors.stdio import StdOutput
 from bytewax.execution import run_main
+from bytewax.window import (
+    EventClockConfig,
+    SessionWindow,
+)
 
 
 @dataclass
 class AppOpen:
     user: int
+    time: datetime
 
 
 @dataclass
 class Search:
     user: int
     query: str
+    time: datetime
 
 
 @dataclass
 class Results:
     user: int
     items: List[str]
+    time: datetime
 
 
 @dataclass
 class ClickResult:
     user: int
     item: str
+    time: datetime
 
 
-@dataclass
-class AppClose:
-    user: int
+from bytewax.inputs import StatefulSource
 
 
-@dataclass
-class Timeout:
-    user: int
+# The time at which we want all of our windows to align to
+align_to = datetime(2022, 1, 1, tzinfo=timezone.utc)
 
 
-IMAGINE_THESE_EVENTS_STREAM_FROM_CLIENTS = [
-    AppOpen(user=1),
-    Search(user=1, query="dogs"),
-    # Eliding named args...
-    Results(1, ["fido", "rover", "buddy"]),
-    ClickResult(1, "rover"),
-    Search(1, "cats"),
-    Results(1, ["fluffy", "burrito", "kathy"]),
-    ClickResult(1, "fluffy"),
-    AppOpen(2),
-    ClickResult(1, "kathy"),
-    Search(2, "fruit"),
-    AppClose(1),
-    AppClose(2),
-]
+class EventSource(StatefulSource):
+    # Simulating events that stream in from users
+    client_events = [
+        Search(user=1, time=align_to + timedelta(seconds=5), query="dogs"),
+        Results(
+            1, time=align_to + timedelta(seconds=6), items=["fido", "rover", "buddy"]
+        ),
+        ClickResult(1, time=align_to + timedelta(seconds=7), item="rover"),
+        Search(2, time=align_to + timedelta(seconds=5), query="cats"),
+        Results(
+            2,
+            time=align_to + timedelta(seconds=6),
+            items=["fluffy", "burrito", "kathy"],
+        ),
+        ClickResult(2, time=align_to + timedelta(seconds=7), item="fluffy"),
+        ClickResult(2, time=align_to + timedelta(seconds=8), item="kathy"),
+    ]
+
+    def __init__(self, resume_state):
+        self._idx = resume_state or -1
+        self._it = enumerate(self.client_events)
+        # Resume to one after the last completed read.
+        for i in range(self._idx + 1):
+            next(self._it)
+
+    def next(self):
+        self._idx, item = next(self._it)
+        return item
+
+    def snapshot(self):
+        return self._idx
 
 
-def input_builder(worker_index, worker_count, resume_state):
-    state = resume_state or None  # Not handling recovery
-    for line in IMAGINE_THESE_EVENTS_STREAM_FROM_CLIENTS:
-        yield (state, line)
+from bytewax.inputs import PartitionedInput
 
 
-def initial_session(event):
-    return str(event.user), [event]
+class SearchSessionInput(PartitionedInput):
+    def list_parts(self):
+        # We only have one producer of events for this example,
+        # so we return a single partition as a set.
+        return {"single-stream"}
+
+    def build_part(self, for_key, resume_state):
+        assert for_key == "single-stream"
+        return EventSource(resume_state)
 
 
-def session_has_closed(session):
-    # isinstance does not work on objects sent through pickling, which
-    # Bytewax does when there are multiple workers.
-    return type(session[-1]).__name__ == "AppClose"
-
-
-def is_search(event):
-    return type(event).__name__ == "Search"
-
-
-def remove_key(user_event):
-    user, event = user_event
-    return event
-
-
-def has_search(session):
-    return any(is_search(event) for event in session)
-
-
-# From a list of events in a user session, split by Search() and return a list of search sessions.
-def split_into_searches(user_session):
-    search_session = []
-    for event in user_session:
-        if is_search(event):
-            yield search_session
-            search_session = []
-        search_session.append(event)
-    yield search_session
-
-
-def calc_ctr(search_session):
-    if any(type(event).__name__ == "ClickResult" for event in search_session):
-        return 1.0
-    else:
-        return 0.0
-
+from bytewax.dataflow import Dataflow
 
 flow = Dataflow()
-flow.input("input", ManualInputConfig(input_builder))
+flow.input("input", SearchSessionInput())
 # event
-flow.map(initial_session)
-# (user, [event])
-# TODO: reduce_window with clock so we can get the mean CTR per minute.
-flow.reduce("sessionizer", operator.add, session_has_closed)
-# (user, [event, ...])
-flow.map(remove_key)
-# [event, ...]
-# Take a user session and split it up into a search session, one per
-# search.
-flow.flat_map(split_into_searches)
-flow.filter(has_search)
-# Calculate search CTR per search.
+
+
+def user_event(event):
+    return str(event.user), event
+
+
+flow.map(user_event)
+# (user, event)
+
+
+def add_event(acc, event):
+    acc.append(event)
+    return acc
+
+
+clock_config = EventClockConfig(
+    lambda e: e.time, wait_for_system_duration=timedelta(seconds=0)
+)
+window_config = SessionWindow(gap=timedelta(seconds=5))
+flow.fold_window("minute_windows", clock_config, window_config, list, add_event)
+# ('1', [Search(user=1, query='dogs', time=datetime.datetime...)])
+
+
+def calc_ctr(user__search_session):
+    user, search_session = user__search_session
+    searches = [event for event in search_session if isinstance(event, Search)]
+    clicks = [event for event in search_session if isinstance(event, ClickResult)]
+    return (user, (len(clicks) / len(searches)))
+
+
+# Calculate search CTR.
 flow.map(calc_ctr)
-flow.capture(StdOutputConfig())
+# ('1', 1.0)
+# ('2', 2.0)
+flow.output("stdout", StdOutput())
 
 
 if __name__ == "__main__":
     run_main(flow)
 
 # Sample Output
-# 1.0
-# 1.0
-# 0.0
+# ('1', 1.0)
+# ('2', 2.0)
