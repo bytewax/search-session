@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from typing import List
 
 from bytewax.connectors.stdio import StdOutput
-from bytewax.execution import run_main
 from bytewax.window import (
     EventClockConfig,
     SessionWindow,
@@ -38,64 +37,33 @@ class ClickResult:
     time: datetime
 
 
-from bytewax.inputs import StatefulSource
+from bytewax.dataflow import Dataflow
+
+flow = Dataflow()
+
+from bytewax.testing import TestingInput
 
 
 # The time at which we want all of our windows to align to
 align_to = datetime(2022, 1, 1, tzinfo=timezone.utc)
 
-
-class EventSource(StatefulSource):
-    # Simulating events that stream in from users
-    client_events = [
-        Search(user=1, time=align_to + timedelta(seconds=5), query="dogs"),
-        Results(
-            1, time=align_to + timedelta(seconds=6), items=["fido", "rover", "buddy"]
-        ),
-        ClickResult(1, time=align_to + timedelta(seconds=7), item="rover"),
-        Search(2, time=align_to + timedelta(seconds=5), query="cats"),
-        Results(
-            2,
-            time=align_to + timedelta(seconds=6),
-            items=["fluffy", "burrito", "kathy"],
-        ),
-        ClickResult(2, time=align_to + timedelta(seconds=7), item="fluffy"),
-        ClickResult(2, time=align_to + timedelta(seconds=8), item="kathy"),
-    ]
-
-    def __init__(self, resume_state):
-        self._idx = resume_state or -1
-        self._it = enumerate(self.client_events)
-        # Resume to one after the last completed read.
-        for i in range(self._idx + 1):
-            next(self._it)
-
-    def next(self):
-        self._idx, item = next(self._it)
-        return item
-
-    def snapshot(self):
-        return self._idx
+# Simulated events to emit into our Dataflow
+client_events = [
+    Search(user=1, time=align_to + timedelta(seconds=5), query="dogs"),
+    Results(1, time=align_to + timedelta(seconds=6), items=["fido", "rover", "buddy"]),
+    ClickResult(1, time=align_to + timedelta(seconds=7), item="rover"),
+    Search(2, time=align_to + timedelta(seconds=5), query="cats"),
+    Results(
+        2,
+        time=align_to + timedelta(seconds=6),
+        items=["fluffy", "burrito", "kathy"],
+    ),
+    ClickResult(2, time=align_to + timedelta(seconds=7), item="fluffy"),
+    ClickResult(2, time=align_to + timedelta(seconds=8), item="kathy"),
+]
 
 
-from bytewax.inputs import PartitionedInput
-
-
-class SearchSessionInput(PartitionedInput):
-    def list_parts(self):
-        # We only have one producer of events for this example,
-        # so we return a single partition as a set.
-        return {"single-stream"}
-
-    def build_part(self, for_key, resume_state):
-        assert for_key == "single-stream"
-        return EventSource(resume_state)
-
-
-from bytewax.dataflow import Dataflow
-
-flow = Dataflow()
-flow.input("input", SearchSessionInput())
+flow.input("input", TestingInput(client_events))
 # event
 
 
@@ -132,11 +100,3 @@ flow.map(calc_ctr)
 # ('1', 1.0)
 # ('2', 2.0)
 flow.output("stdout", StdOutput())
-
-
-if __name__ == "__main__":
-    run_main(flow)
-
-# Sample Output
-# ('1', 1.0)
-# ('2', 2.0)
