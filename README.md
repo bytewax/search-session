@@ -37,7 +37,7 @@ bytewax
 
 Let's start by defining a data model / schema for our incoming events. We'll make model classes for all the relevant events we'd want to monitor.
 
-https://github.com/bytewax/search-session/blob/main/dataflow.py#L13-L37
+https://github.com/bytewax/search-session/blob/2052472a6e963c4be8bc1a3e23ac9d84f4e65eff/dataflow.py#L13-L37
 
 In a production system, these might come from external schema or be auto generated.
 
@@ -47,13 +47,13 @@ A dataflow is the unit of work in Bytewax. Dataflows are data-parallel directed 
 
 Let's start by creating an empty dataflow.
 
-https://github.com/bytewax/search-session/blob/main/dataflow.py#L40-L42
+https://github.com/bytewax/search-session/blob/2052472a6e963c4be8bc1a3e23ac9d84f4e65eff/dataflow.py#L40-L42
 
 ## Generating Input Data
 
 Bytewax has a `TestingInput` class that takes an enumerable list of events that it will emit, one at a time into our dataflow.
 
-https://github.com/bytewax/search-session/blob/main/dataflow.py#L47-L66
+https://github.com/bytewax/search-session/blob/2052472a6e963c4be8bc1a3e23ac9d84f4e65eff/dataflow.py#L47-L66
 
 Note: `TestingInput` shouldn't be used when writing your production Dataflow. See the documentation for [Bytewax.inputs](https://bytewax.io/apidocs/bytewax.inputs) to see which input class will work for your use-case.
 
@@ -81,23 +81,23 @@ The operator which modifies all data in the stream, one at a time, is [map](http
 
 Here we use the map operator with an `user_event` function that will pull each event's user ID as a string into that key position.
 
-https://github.com/bytewax/search-session/blob/main/dataflow.py#L70-L75
+https://github.com/bytewax/search-session/blob/2052472a6e963c4be8bc1a3e23ac9d84f4e65eff/dataflow.py#L70-L75
 
 For the value, we're planning ahead to our next task: windowing. We will construct a `SessionWindow`. A `SessionWindow` groups events together by key until no events occur within a gap period. In our example, we want to capture a window of events that approximate an individual search session.
 
 Our aggregation over these events will use the `fold_window` operator, which takes a **builder** and a **folder** function. Our **builder** function will be the built in `list` operator, which creates a new list containing the first element. Our **folder** function, `add_event` will append each new event in a session to the existing window.
 
-https://github.com/bytewax/search-session/blob/main/dataflow.py#L78-L88
+https://github.com/bytewax/search-session/blob/2052472a6e963c4be8bc1a3e23ac9d84f4e65eff/dataflow.py#L78-L88
 
 We can now move on to our final task: calculating metrics per search session in a map operator.
 
-https://github.com/bytewax/search-session/blob/main/dataflow.py#L91-L99
+https://github.com/bytewax/search-session/blob/2052472a6e963c4be8bc1a3e23ac9d84f4e65eff/dataflow.py#L91-L99
 
 If there's a click during a search, the CTR is 1.0 for that search, 0.0 otherwise. Given those two extreme values, we can do further statistics to get things like CTR per day, etc
 
 Now that our dataflow is done, we can define a function to be called for each output item. In this example, we're just printing out what we've received.
 
-https://github.com/bytewax/search-session/blob/main/dataflow.py#L102
+https://github.com/bytewax/search-session/blob/2052472a6e963c4be8bc1a3e23ac9d84f4e65eff/dataflow.py#L102
 
 Now we're done with defining the dataflow. Let's run it!
 
