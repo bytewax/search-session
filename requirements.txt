@@ -1,1 +1,1 @@
-bytewax
+bytewax==0.16.*
