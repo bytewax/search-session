@@ -53,7 +53,7 @@ https://github.com/bytewax/search-session/blob/main/dataflow.py#L40-L42
 
 Bytewax has a `TestingInput` class that takes an enumerable list of events that it will emit, one at a time into our dataflow.
 
-https://github.com/bytewax/search-session/blob/main/dataflow.py#L40-L77
+https://github.com/bytewax/search-session/blob/main/dataflow.py#L47-L66
 
 Note: `TestingInput` shouldn't be used when writing your production Dataflow. See the documentation for [Bytewax.inputs](https://bytewax.io/apidocs/bytewax.inputs) to see which input class will work for your use-case.
 
@@ -71,14 +71,6 @@ Let's talk about the high-level plan for how to sessionize:
 
 ### The Dataflow
 
-Now that we have some input data, let's start defining the computational steps of our dataflow based on our plan.
-
-We will need to import `bytewax.dataflow.Dataflow`, and then create an empty `bytewax.dataflow.Dataflow` object.
-
-We'll then set our input to be the `SearchSessionInput` class we created above.
-
-https://github.com/bytewax/search-session/blob/main/dataflow.py#L102-L105
-
 Now that we have a Dataflow, and some input, we can add a series of **steps** to the dataflow. Steps are made up of **operators**, that provide a "shape" of transformation, and **logic functions**, that you supply to do your specific transformation. [You can read more about all the operators in our documentation.](https://www.bytewax.io/docs/getting-started/operators)
 
 Our first task is to make sure to group incoming events by user since no session deals with multiple users.
@@ -89,23 +81,23 @@ The operator which modifies all data in the stream, one at a time, is [map](http
 
 Here we use the map operator with an `user_event` function that will pull each event's user ID as a string into that key position.
 
-https://github.com/bytewax/search-session/blob/main/dataflow.py#L109-L111
+https://github.com/bytewax/search-session/blob/main/dataflow.py#L70-L75
 
 For the value, we're planning ahead to our next task: windowing. We will construct a `SessionWindow`. A `SessionWindow` groups events together by key until no events occur within a gap period. In our example, we want to capture a window of events that approximate an individual search session.
 
 Our aggregation over these events will use the `fold_window` operator, which takes a **builder** and a **folder** function. Our **builder** function will be the built in `list` operator, which creates a new list containing the first element. Our **folder** function, `add_event` will append each new event in a session to the existing window.
 
-https://github.com/bytewax/search-session/blob/main/dataflow.py#L114-L119
+https://github.com/bytewax/search-session/blob/main/dataflow.py#L78-L88
 
 We can now move on to our final task: calculating metrics per search session in a map operator.
 
-https://github.com/bytewax/search-session/blob/main/dataflow.py#L122-126
+https://github.com/bytewax/search-session/blob/main/dataflow.py#L91-L99
 
 If there's a click during a search, the CTR is 1.0 for that search, 0.0 otherwise. Given those two extreme values, we can do further statistics to get things like CTR per day, etc
 
 Now that our dataflow is done, we can define a function to be called for each output item. In this example, we're just printing out what we've received.
 
-https://github.com/bytewax/search-session/blob/main/dataflow.py#L133
+https://github.com/bytewax/search-session/blob/main/dataflow.py#L102
 
 Now we're done with defining the dataflow. Let's run it!
 
@@ -113,7 +105,7 @@ Now we're done with defining the dataflow. Let's run it!
 > python -m bytewax.run dataflow:flow
 ```
 
-Since the [capture](/apidocs#bytewax.Dataflow.output) step is immediately after calculating CTR, we should see one output item for each search session. That checks out! There were three searches in the input: "dogs", "cats", and "fruit". Only the first two resulted in a click, so they contributed `1.0` to the CTR, while the no-click search contributed `0.0`.
+Since the [output](/apidocs#bytewax.Dataflow.output) step is immediately after calculating CTR, we should see one output item for each search session. That checks out! There were three searches in the input: "dogs", "cats", and "fruit". Only the first two resulted in a click, so they contributed `1.0` to the CTR, while the no-click search contributed `0.0`.
 
 ## Summary
 
