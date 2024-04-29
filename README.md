@@ -53,8 +53,15 @@ In this tutorial, we will demonstrate how to build a dataflow using Bytewax to p
 1. Defining a data model/schema for incoming events.
 2. Generating input data to simulate user interactions.
 3. Implementing logic functions to calculate CTR for each search session.
-4. Creating a dataflow to process the incoming event stream.
+4. Creating a dataflow that incorporates windowing to process the incoming event stream.
 5. Executing the dataflow to generate actionable insights.
+
+## Assumptions
+
+* Searches are per-user, so we need to divvy up events by user.
+* Searches don't span user sessions, so we should calculate user sessions first.
+* Sessions without a search shouldn't contribute.
+* Calculate one metric: **click through rate** (or **CTR**), if a user clicked on any result in a search.
 
 ## Imports and Setup
 
@@ -72,9 +79,24 @@ https://github.com/bytewax/search-session/blob/c5ff19b7731edf9f551f3c2c6d5dee6f2
 
 In a production system, these might come from external schema or be auto generated.
 
-Once the data model is defined, we can move on to generating input data to simulate user interactions. This will allow us to test our dataflow and logic functions before deploying them in a live environment.
+Once the data model is defined, we can move on to generating input data to simulate user interactions. This will allow us to test our dataflow and logic functions before deploying them in a live environment. Let's create 2 users and simulate their click activity as follows:
 
-https://github.com/bytewax/search-session/blob/c5ff19b7731edf9f551f3c2c6d5dee6f21e04f4a/dataflow.py#L63-L80
+https://github.com/bytewax/search-session/blob/c5ff19b7731edf9f551f3c2c6d5dee6f21e04f4a/dataflow.py#L38-L58
+
+The client events will constitute the data input for our dataflow, simulating user interactions with the search engine. The events will include user IDs, search queries, search results, and click activity. This data will be used to calculate the Click-Through Rate (CTR) for each search session.
+
+## Defining user events, adding events and calculating CTR
+
+We will define three helper functions: `user_event`, `add_event`, and `calculate_ctr` to process the incoming events and calculate the CTR for each search session.
+
+1. The `user_event` function will extract the user ID from the incoming event and use it as the key for grouping the events by user.
+
+https://github.com/bytewax/search-session/blob/c5ff19b7731edf9f551f3c2c6d5dee6f21e04f4a/dataflow.py#L60-62
+
+
+3. The `calculate_ctr` function will calculate the Click-Through Rate (CTR) for each search session based on the click activity in the session. 
+
+https://github.com/bytewax/search-session/blob/c5ff19b7731edf9f551f3c2c6d5dee6f21e04f4a/dataflow.py#L64-75
 
 ## Creating our Dataflow
 
@@ -82,65 +104,60 @@ A dataflow is the unit of work in Bytewax. Dataflows are data-parallel directed 
 
 Let's start by creating an empty dataflow.
 
-https://github.com/bytewax/search-session/blob/2052472a6e963c4be8bc1a3e23ac9d84f4e65eff/dataflow.py#L40-L42
+https://github.com/bytewax/search-session/blob/c5ff19b7731edf9f551f3c2c6d5dee6f21e04f4a/dataflow.py#L77-78
 
-## Generating Input Data
+### Generating Input Data
 
-Bytewax has a `TestingInput` class that takes an enumerable list of events that it will emit, one at a time into our dataflow.
+Bytewax has a `TestingSource` class that takes an enumerable list of events that it will emit, one at a time into our dataflow. `TestingSource` will be initialized with the list of events we created earlier in the variable `client_events`.
 
-https://github.com/bytewax/search-session/blob/2052472a6e963c4be8bc1a3e23ac9d84f4e65eff/dataflow.py#L47-L66
+https://github.com/bytewax/search-session/blob/c5ff19b7731edf9f551f3c2c6d5dee6f21e04f4a/dataflow.py#L79-80
 
-Note: `TestingInput` shouldn't be used when writing your production Dataflow. See the documentation for [Bytewax.inputs](https://bytewax.io/apidocs/bytewax.inputs) to see which input class will work for your use-case.
 
-### High-Level Plan
+### Mapping user events
 
-Let's talk about the high-level plan for how to sessionize:
+We can use the `op` class along with `op.map("user_event", inp, user_event)` - this takes each event from the input and applies the `user_event` function. This function is transforming each event into a format suitable for grouping by user (key-value pairs where the key is the user ID).
 
-- Searches are per-user, so we need to divvy up events by user.
+https://github.com/bytewax/search-session/blob/c5ff19b7731edf9f551f3c2c6d5dee6f21e04f4a/dataflow.py#L81-82
 
-- Searches don't span user sessions, so we should calculate user sessions first.
+### The role of windowed data in analysis for CTR
 
-- Sessions without a search shouldn't contribute.
+We will now turn our attention to windowing the data. In a dataflow pipeline, the role of collecting windowed data, particularly after mapping user events, is crucial for segmenting the continuous stream of events into manageable, discrete chunks based on time or event characteristics. This step enables the aggregation and analysis of events within specific time frames or sessions, which is essential for understanding patterns, behaviors, and trends over time.
 
-- Calculate one metric: **click through rate** (or **CTR**), if a user clicked on any result in a search.
+After user events are mapped, typically transforming each event into a tuple of (user_id, event_data), the next step is to group these events into windows. In this example, we will use a `SessionWindow` to group events by user sessions. We will also use an `EventClockConfig` to manage the timing and order of events as they are processed through the dataflow.
 
-### The Dataflow
+https://github.com/bytewax/search-session/blob/c5ff19b7731edf9f551f3c2c6d5dee6f21e04f4a/dataflow.py#L83-90
 
-Now that we have a Dataflow, and some input, we can add a series of **steps** to the dataflow. Steps are made up of **operators**, that provide a "shape" of transformation, and **logic functions**, that you supply to do your specific transformation. [You can read more about all the operators in our documentation.](https://www.bytewax.io/docs/getting-started/operators)
+* The `EventClockConfig` is responsible for managing the timing and order of events as they are processed through the dataflow. It's crucial for ensuring that events are handled accurately in real-time or near-real-time streaming applications.
 
-Our first task is to make sure to group incoming events by user since no session deals with multiple users.
+* The `SessionWindow` specifies how to group these timestamped events into sessions. A session window collects all events that occur within a specified gap of each other, allowing for dynamic window sizes based on the flow of incoming data
 
-All Bytewax operators that perform grouping require that their input be in the form of a `(key, value)` tuple, where `key` is the string the dataflow will group by before passing to the operator logic.
+These configurations ensure that your dataflow can handle streaming data effectively, capturing user behavior in sessions and calculating relevant metrics like CTR in a way that is timely and reflective of actual user interactions. This setup is ideal for scenarios where user engagement metrics over time are critical, such as in digital marketing analysis, website optimization, or interactive application monitoring.
 
-The operator which modifies all data in the stream, one at a time, is [map](https://www.bytewax.io/apidocs/bytewax.dataflow#bytewax.dataflow.Dataflow.map). The map operator takes a Python function as an argument and that function will transform the data, one at a time.
+Once the events are grouped into windows, further processing can be performed on these grouped events, such as calculating metrics like CTR within each session. This step often involves applying additional functions to the windowed data to extract insights, such as counting clicks and searches to compute the CTR.
 
-Here we use the map operator with an `user_event` function that will pull each event's user ID as a string into that key position.
+We can do this as follows:
 
-https://github.com/bytewax/search-session/blob/2052472a6e963c4be8bc1a3e23ac9d84f4e65eff/dataflow.py#L70-L75
+https://github.com/bytewax/search-session/blob/c5ff19b7731edf9f551f3c2c6d5dee6f21e04f4a/dataflow.py#L92-97
 
-For the value, we're planning ahead to our next task: windowing. We will construct a `SessionWindow`. A `SessionWindow` groups events together by key until no events occur within a gap period. In our example, we want to capture a window of events that approximate an individual search session.
+In here, we are setting up data windowing as a step in the dataflow after the user events were created. We can then calculate the CTR using our function on the windowed data. 
 
-Our aggregation over these events will use the `fold_window` operator, which takes a **builder** and a **folder** function. Our **builder** function will be the built in `list` operator, which creates a new list containing the first element. Our **folder** function, `add_event` will append each new event in a session to the existing window.
+### Returning results
 
-https://github.com/bytewax/search-session/blob/2052472a6e963c4be8bc1a3e23ac9d84f4e65eff/dataflow.py#L78-L88
+Finally, we can add an output step to our dataflow to return the results of the CTR calculation. This step will emit the CTR for each search session, providing a comprehensive overview of user engagement with search results.
 
-We can now move on to our final task: calculating metrics per search session in a map operator.
+https://github.com/bytewax/search-session/blob/c5ff19b7731edf9f551f3c2c6d5dee6f21e04f4a/dataflow.py#L98-99
 
-https://github.com/bytewax/search-session/blob/2052472a6e963c4be8bc1a3e23ac9d84f4e65eff/dataflow.py#L91-L99
-
-If there's a click during a search, the CTR is 1.0 for that search, 0.0 otherwise. Given those two extreme values, we can do further statistics to get things like CTR per day, etc
-
-Now that our dataflow is done, we can define a function to be called for each output item. In this example, we're just printing out what we've received.
-
-https://github.com/bytewax/search-session/blob/2052472a6e963c4be8bc1a3e23ac9d84f4e65eff/dataflow.py#L102
 
 Now we're done with defining the dataflow. Let's run it!
 
 ``` python
 > python -m bytewax.run dataflow:flow
+>> User 1: 1 searches, 1 clicks
+>> User 2: 1 searches, 2 clicks
+>>('1', 1.0)
+>>('2', 2.0)
 ```
 
-Since the [output](/apidocs#bytewax.Dataflow.output) step is immediately after calculating CTR, we should see one output item for each search session. That checks out! There were three searches in the input: "dogs", "cats", and "fruit". Only the first two resulted in a click, so they contributed `1.0` to the CTR, while the no-click search contributed `0.0`.
 
 ## Summary
 

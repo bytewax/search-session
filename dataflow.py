@@ -35,28 +35,6 @@ class ClickResult:
     time: datetime
 
 
-def user_event(event):
-    
-    return str(event.user), event
-
-def add_event(acc, event):
-    acc.append(event)
-    return acc
-
-def calc_ctr(user__search_session):
-    user, (window_metadata, search_session) = user__search_session
-    
-    searches = [event for event in search_session if isinstance(event, Search)]
-    clicks = [event for event in search_session if isinstance(event, ClickResult)]
-    
-    # See counts of searches and clicks
-    print(f"User {user}: {len(searches)} searches, {len(clicks)} clicks")
-
-    if len(searches) == 0:
-        return (user, 0)
-    return (user, len(clicks) / len(searches))
-
-
 # The time at which we want all of our windows to align to
 align_to = datetime(2024, 1, 1, tzinfo=timezone.utc)
 
@@ -79,13 +57,24 @@ client_events = [
     ClickResult(user=2, time=align_to + timedelta(seconds=8), item="kathy"),
 ]
 
-# Configuration for the Dataflow 
-event_time_config = EventClockConfig(
-    dt_getter=lambda e: e.time,
-    wait_for_system_duration=timedelta(seconds=1)  
-)
-# Configuration for the windowing operator
-clock_config = SessionWindow(gap=timedelta(seconds=10))
+def user_event(event):
+    
+    return str(event.user), event
+
+def calc_ctr(user__search_session):
+    user, (window_metadata, search_session) = user__search_session
+    
+    searches = [event for event in search_session if isinstance(event, Search)]
+    clicks = [event for event in search_session if isinstance(event, ClickResult)]
+    
+    # See counts of searches and clicks
+    print(f"User {user}: {len(searches)} searches, {len(clicks)} clicks")
+
+    if len(searches) == 0:
+        return (user, 0)
+    return (user, len(clicks) / len(searches))
+
+
 
 # Create the Dataflow
 flow = Dataflow("search_ctr")
@@ -94,6 +83,14 @@ inp = op.input("inp", flow, TestingSource(client_events))
 # Map user events function
 user_event_map = op.map("user_event", inp, user_event)
 # Collect windowed data
+# Configuration for the Dataflow 
+event_time_config = EventClockConfig(
+    dt_getter=lambda e: e.time,
+    wait_for_system_duration=timedelta(seconds=1)  
+)
+# Configuration for the windowing operator
+clock_config = SessionWindow(gap=timedelta(seconds=10))
+
 window = wop.collect_window("windowed_data", \
                             user_event_map, \
                             clock=event_time_config,
