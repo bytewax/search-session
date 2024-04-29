@@ -74,8 +74,6 @@ def calc_ctr(user__search_session):
         return (user, 0)
     return (user, len(clicks) / len(searches))
 
-
-
 # Create the Dataflow
 flow = Dataflow("search_ctr")
 # Add input source
