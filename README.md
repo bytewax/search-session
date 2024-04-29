@@ -23,9 +23,13 @@ Introduction: *Here is a basic example of using Bytewax to turn an incoming stre
 ## Table of content
 
 - Resources
+- Introduction and problem statement 
+- Strategy
+- Assumptions
+- Imports and Setup
 - Data Model
-- Input Data
-- Constructing the Dataflow
+- Defining user events, adding events and calculating CTR
+- Creating our Dataflow
 - Execution
 - Summary
 
@@ -147,6 +151,7 @@ Finally, we can add an output step to our dataflow to return the results of the 
 
 https://github.com/bytewax/search-session/blob/cdd51080533d1fd196187a34cde33c7e00a27ec5/dataflow.py#L98-L99
 
+## Execution
 
 Now we're done with defining the dataflow. Let's run it!
 
@@ -157,7 +162,6 @@ Now we're done with defining the dataflow. Let's run it!
 >>('1', 1.0)
 >>('2', 2.0)
 ```
-
 
 ## Summary
 
