@@ -91,12 +91,12 @@ We will define three helper functions: `user_event`, `add_event`, and `calculate
 
 1. The `user_event` function will extract the user ID from the incoming event and use it as the key for grouping the events by user.
 
-https://github.com/bytewax/search-session/blob/e27a0e116c8ca6f073e2278302d6128795d8ac37/dataflow.py#L60-62
+https://github.com/bytewax/search-session/blob/e27a0e116c8ca6f073e2278302d6128795d8ac37/dataflow.py#L60-L62
 
 
 3. The `calculate_ctr` function will calculate the Click-Through Rate (CTR) for each search session based on the click activity in the session. 
 
-https://github.com/bytewax/search-session/blob/e27a0e116c8ca6f073e2278302d6128795d8ac37/dataflow.py#L64-75
+https://github.com/bytewax/search-session/blob/e27a0e116c8ca6f073e2278302d6128795d8ac37/dataflow.py#L64-L75
 
 ## Creating our Dataflow
 
@@ -104,20 +104,20 @@ A dataflow is the unit of work in Bytewax. Dataflows are data-parallel directed 
 
 Let's start by creating an empty dataflow.
 
-https://github.com/bytewax/search-session/blob/e27a0e116c8ca6f073e2278302d6128795d8ac37/dataflow.py#L77-78
+https://github.com/bytewax/search-session/blob/e27a0e116c8ca6f073e2278302d6128795d8ac37/dataflow.py#L77-L78
 
 ### Generating Input Data
 
 Bytewax has a `TestingSource` class that takes an enumerable list of events that it will emit, one at a time into our dataflow. `TestingSource` will be initialized with the list of events we created earlier in the variable `client_events`.
 
-https://github.com/bytewax/search-session/blob/e27a0e116c8ca6f073e2278302d6128795d8ac37/dataflow.py#L79-80
+https://github.com/bytewax/search-session/blob/e27a0e116c8ca6f073e2278302d6128795d8ac37/dataflow.py#L79-L80
 
 
 ### Mapping user events
 
 We can use the `op` class along with `op.map("user_event", inp, user_event)` - this takes each event from the input and applies the `user_event` function. This function is transforming each event into a format suitable for grouping by user (key-value pairs where the key is the user ID).
 
-https://github.com/bytewax/search-session/blob/e27a0e116c8ca6f073e2278302d6128795d8ac37/dataflow.py#L81-82
+https://github.com/bytewax/search-session/blob/e27a0e116c8ca6f073e2278302d6128795d8ac37/dataflow.py#L81-L82
 
 ### The role of windowed data in analysis for CTR
 
@@ -125,7 +125,7 @@ We will now turn our attention to windowing the data. In a dataflow pipeline, th
 
 After user events are mapped, typically transforming each event into a tuple of (user_id, event_data), the next step is to group these events into windows. In this example, we will use a `SessionWindow` to group events by user sessions. We will also use an `EventClockConfig` to manage the timing and order of events as they are processed through the dataflow.
 
-https://github.com/bytewax/search-session/blob/e27a0e116c8ca6f073e2278302d6128795d8ac37/dataflow.py#L83-90
+https://github.com/bytewax/search-session/blob/e27a0e116c8ca6f073e2278302d6128795d8ac37/dataflow.py#L83-L90
 
 * The `EventClockConfig` is responsible for managing the timing and order of events as they are processed through the dataflow. It's crucial for ensuring that events are handled accurately in real-time or near-real-time streaming applications.
 
@@ -137,7 +137,7 @@ Once the events are grouped into windows, further processing can be performed on
 
 We can do this as follows:
 
-https://github.com/bytewax/search-session/blob/e27a0e116c8ca6f073e2278302d6128795d8ac37/dataflow.py#L92-97
+https://github.com/bytewax/search-session/blob/e27a0e116c8ca6f073e2278302d6128795d8ac37/dataflow.py#L92-L97
 
 In here, we are setting up data windowing as a step in the dataflow after the user events were created. We can then calculate the CTR using our function on the windowed data. 
 
@@ -145,7 +145,7 @@ In here, we are setting up data windowing as a step in the dataflow after the us
 
 Finally, we can add an output step to our dataflow to return the results of the CTR calculation. This step will emit the CTR for each search session, providing a comprehensive overview of user engagement with search results.
 
-https://github.com/bytewax/search-session/blob/e27a0e116c8ca6f073e2278302d6128795d8ac37/dataflow.py#L98-99
+https://github.com/bytewax/search-session/blob/e27a0e116c8ca6f073e2278302d6128795d8ac37/dataflow.py#L98-L99
 
 
 Now we're done with defining the dataflow. Let's run it!
