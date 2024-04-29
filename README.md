@@ -14,11 +14,11 @@ Introduction: *Here is a basic example of using Bytewax to turn an incoming stre
 ## ****Prerequisites****
 
 **Python modules**
-bytewax
+* bytewax==0.19.*
 
 ## Your Takeaway
 
-*This guide will teach you how to use Bytewax to aggregate on a custom session window on streaming data using a window and then calculate metrics downstream.*
+*This guide will teach you how to use Bytewax to detect and calculate the Click-Through Rate (CTR) on a custom session window on streaming data using a window and then calculate metrics downstream.*
 
 ## Table of content
 
@@ -33,13 +33,48 @@ bytewax
 
 [Github link](https://github.com/bytewax/search-session)
 
+## Introduction and problem statement 
+
+ One of the most critical metrics in evaluating the effectiveness of online platforms, particularly search engines, is the Click-Through Rate (CTR). The CTR is a measure of how frequently users engage with search results or advertisements, making it an indispensable metric for digital marketers, web developers, and data analysts.
+
+ This relevance of CTR extends to any enterprise aiming to understand user behavior, refine content relevancy, and ultimately, increase the profitability of online activities. As such, efficiently calculating and analyzing CTR is not only essential for enhancing user experience but also for driving strategic business decisions. The challenge, however, lies in accurately aggregating and processing streaming data to generate timely and actionable insights.
+
+Our focus on developing a dataflow using Bytewax—an open-source Python framework for streaming data processing—addresses this challenge head-on. Bytewax allows for the real-time processing of large volumes of event data, which is particularly beneficial for organizations dealing with continuous streams of user interactions. This tutorial is specifically relevant for:
+
+* Digital Marketers: Who need to analyze user interaction to optimize ad placements and content strategy effectively.
+* Data Analysts and Scientists: Who require robust tools to process and interpret user data to derive insights that drive business intelligence.
+* Web Developers: Focused on improving site architecture and user interface to enhance user engagement and satisfaction.
+* Product Managers: Who oversee digital platforms and are responsible for increasing user engagement and retention through data-driven methodologies.
+
+## Strategy
+
+In this tutorial, we will demonstrate how to build a dataflow using Bytewax to process streaming data from a hypothetical search engine. The dataflow will be designed to calculate the Click-Through Rate (CTR) for each search session, providing a comprehensive overview of user engagement with search results. The key steps involved in this process include:
+
+1. Defining a data model/schema for incoming events.
+2. Generating input data to simulate user interactions.
+3. Implementing logic functions to calculate CTR for each search session.
+4. Creating a dataflow to process the incoming event stream.
+5. Executing the dataflow to generate actionable insights.
+
+## Imports and Setup
+
+Before we begin, let's import the necessary modules and set up the environment for building the dataflow.
+
+https://github.com/bytewax/search-session/blob/c5ff19b7731edf9f551f3c2c6d5dee6f21e04f4a/dataflow.py#L1-L11
+
+In this example, we will define a data model for the incoming events, generate input data to simulate user interactions, and implement logic functions to calculate the Click-Through Rate (CTR) for each search session. We will then create a dataflow to process the incoming event stream and execute it to generate actionable insights.
+
 ## Data Model
 
 Let's start by defining a data model / schema for our incoming events. We'll make model classes for all the relevant events we'd want to monitor.
 
-https://github.com/bytewax/search-session/blob/2052472a6e963c4be8bc1a3e23ac9d84f4e65eff/dataflow.py#L13-L37
+https://github.com/bytewax/search-session/blob/c5ff19b7731edf9f551f3c2c6d5dee6f21e04f4a/dataflow.py#L13-L36
 
 In a production system, these might come from external schema or be auto generated.
+
+Once the data model is defined, we can move on to generating input data to simulate user interactions. This will allow us to test our dataflow and logic functions before deploying them in a live environment.
+
+https://github.com/bytewax/search-session/blob/c5ff19b7731edf9f551f3c2c6d5dee6f21e04f4a/dataflow.py#L63-L80
 
 ## Creating our Dataflow
 

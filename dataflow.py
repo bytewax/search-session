@@ -8,7 +8,7 @@ from bytewax.operators.window import SessionWindow, \
 from bytewax.operators import window as wop
 import bytewax.operators as op
 from bytewax.dataflow import Dataflow
-from bytewax.testing import TestingSource, run_main
+from bytewax.testing import TestingSource
 
 @dataclass
 class AppOpen:
