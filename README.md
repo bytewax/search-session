@@ -98,7 +98,7 @@ We will define three helper functions: `user_event`, `add_event`, and `calculate
 https://github.com/bytewax/search-session/blob/cdd51080533d1fd196187a34cde33c7e00a27ec5/dataflow.py#L60-L62
 
 
-3. The `calculate_ctr` function will calculate the Click-Through Rate (CTR) for each search session based on the click activity in the session. 
+2. The `calculate_ctr` function will calculate the Click-Through Rate (CTR) for each search session based on the click activity in the session. 
 
 https://github.com/bytewax/search-session/blob/cdd51080533d1fd196187a34cde33c7e00a27ec5/dataflow.py#L64-L75
 
